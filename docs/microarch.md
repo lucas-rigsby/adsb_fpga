@@ -6,7 +6,7 @@ Bridge between [spec.md](spec.md) (v0.4) and the RTL. Every structure cites the 
 
 **Built so far** (cocotb vs `tb/adsb_ref.py` + SymbiYosys): `iq_mag` (A1/A2, all 65,536 inputs), `chip_energy` (B, both rates, k-induction proof), `tick_line` (C, every candidate's 240 taps checked; formal on a 19-entry line; synth_ecp5: 17,244 FF, 41 LUT4 + 16 CCU2C, no RAM inferred).
 
-A behavioural prototype of exactly this structure ([scripts/tickline_proto.py](../scripts/tickline_proto.py)) (insertion rule, fixed taps, fill counter, header-derived T) produced the same records and `ADSB_CAND` as `tb/adsb_ref.py` in every case tried:
+A behavioral prototype of exactly this structure ([scripts/tickline_proto.py](../scripts/tickline_proto.py)) (insertion rule, fixed taps, fill counter, header-derived T) produced the same records and `ADSB_CAND` as `tb/adsb_ref.py` in every case tried:
 - random streams at both rates and at 20 dB and 10 dB;
 - a 777-sample sequence gap;
 - every boundary case;
@@ -215,7 +215,7 @@ The parser is byte-counter driven: each state compares the byte offset against c
 | — | link up, PHY ready | — | — | not crossed as single bits | PHY_STATUS goes through AF1 as a token. led[3] is driven inside rmii. The spec's 2FF row is unused. |
 | — | learned host MAC/IP/port | — | rmii only | not crossed | spec |
 
-**CTRL clear without a core → rmii crossing (R16).** The 40-bit gray counters in rmii run freely and are never cleared. On a `CTRL` write, the core snapshots each synchronised value as a base. A register read returns $\min(\text{current} - \text{base},\ 2^{32} - 1)$, so it reads 0 after a clear, saturates (R16) and never decreases (P8). It only goes wrong after $2^{40}$ events, which takes 85 days of nonstop minimum-size frames at line rate. led[7] lights when any of those three differences is non-zero.
+**CTRL clear without a core → rmii crossing (R16).** The 40-bit gray counters in rmii run freely and are never cleared. On a `CTRL` write, the core snapshots each synchronized value as a base. A register read returns $\min(\text{current} - \text{base},\ 2^{32} - 1)$, so it reads 0 after a clear, saturates (R16) and never decreases (P8). It only goes wrong after $2^{40}$ events, which takes 85 days of nonstop minimum-size frames at line rate. led[7] lights when any of those three differences is non-zero.
 
 LEDs (R30): led[0], led[5], led[6], led[7] are driven from core; led[1], led[3], led[4] from rmii; led[2] directly from PLL lock. They are output pins only, so no crossing.
 
@@ -277,7 +277,7 @@ The demux handles each tag as follows:
 | 4 | **AF2/AF3 overflow under an ARP/CSR flood.** Records drain at $\ge 1$ per 7.8 µs against $\le 1$ emitted per 28.8 µs, but a hostile stream of ARP or CSR requests at line rate takes all of TX through priority (R11) | Depth 8 each covers normal use. On overflow the record or response is dropped and counted in `TX_DROP` (R34); record sequence numbers show the gap to the host. Neither the DSP nor the CSR block ever stalls, so P4 and R20 hold. |
 | 5 | **R29 margin** is only 13 µs at 2.0 MS/s with 700-pair packets | Measured in system simulation. Fallback: 4-cycle sample acceptance (section 2c). |
 | 6 | **Verification: R21 needs deterministic ordering** of config writes against samples | Solved by the shared AF1 plus WAIT_DRAIN. The system test must include a CSR write between two packets of one stream and compare against `SystemModel`. |
-| 7 | **Verification: tick_line is too big for formal** | Prove P4 and P6 on a parameterised small line (e.g. a 15-chip frame variant). Prove P1 on `crc24_112` standalone. Cover the full design by simulation against the model. |
+| 7 | **Verification: tick_line is too big for formal** | Prove P4 and P6 on a parameterized small line (e.g. a 15-chip frame variant). Prove P1 on `crc24_112` standalone. Cover the full design by simulation against the model. |
 | 8 | **CRS_DV end-of-frame toggling** differs between PHY datasheets | Block test with both clean and toggling CRS_DV endings; Step 1 hardware check with pings of every size. |
 
 ## 9. Spec questions (settled in spec v0.4)

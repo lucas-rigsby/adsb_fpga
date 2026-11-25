@@ -154,7 +154,7 @@ Short packets arrive zero-padded to the 64-byte Ethernet minimum; all lengths ar
 
 Mode S uses 0.5 µs PPM chips: an 8 µs preamble (16 chips, pulses in chips 0, 2, 7, 9) then 112 bits of 2 chips each, 240 chips in all. Time is measured in **ticks** of $\tfrac{1}{12}$ µs: a chip is 6 ticks; a sample is $S = 6$ ticks at 2.0 MS/s and $S = 5$ ticks at 2.4 MS/s. Sample $n$ covers ticks $[Sn,\ Sn + S)$, counted from stream start; $m[n]$ is its magnitude (R22).
 
-A **candidate** $(n, \varphi)$ is a possible frame start at tick $T = S n + \varphi$, with phase $\varphi \in \{0\}$ at 2.0 MS/s and $\varphi \in \{0, 1, 2, 3, 4\}$ at 2.4 MS/s. Its chip $j$ ($j = 0, \ldots, 239$) covers ticks $[T + 6j,\ T + 6j + 6)$. The **chip energy** $c_j$ is the sum of $m$ over the samples the chip overlaps, each weighted by the overlap in ticks (weights always sum to 6). This is the box-integration model behind dump1090-fa's 2.4 MS/s demodulator, generalised from bits to chips; at 2.0 MS/s it reduces to $c_j = 6\,m[n+j]$, which is the v0.2 algorithm scaled by 6.
+A **candidate** $(n, \varphi)$ is a possible frame start at tick $T = S n + \varphi$, with phase $\varphi \in \{0\}$ at 2.0 MS/s and $\varphi \in \{0, 1, 2, 3, 4\}$ at 2.4 MS/s. Its chip $j$ ($j = 0, \ldots, 239$) covers ticks $[T + 6j,\ T + 6j + 6)$. The **chip energy** $c_j$ is the sum of $m$ over the samples the chip overlaps, each weighted by the overlap in ticks (weights always sum to 6). This is the box-integration model behind dump1090-fa's 2.4 MS/s demodulator, generalized from bits to chips; at 2.0 MS/s it reduces to $c_j = 6\,m[n+j]$, which is the v0.2 algorithm scaled by 6.
 
 | ID | Requirement |
 |----|-------------|

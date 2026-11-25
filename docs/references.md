@@ -1,10 +1,10 @@
 # References and how they relate to the spec
 
-Notes only — `docs/spec.md` is the golden file. Anything here that should change behaviour goes through the `/spec` skill first.
+Notes only — `docs/spec.md` is the golden file. Anything here that should change behavior goes through the `/spec` skill first.
 
 ## Primary reference: Nuand bladeRF-adsb — https://github.com/Nuand/bladeRF-adsb
 
-MIT licence per README; check `LICENSE` before reusing code.
+MIT license per README; check `LICENSE` before reusing code.
 
 **What it is.** A full FPGA ADS-B demodulator in VHDL (`vhdl/`) for the bladeRF, decoding to 112-bit messages that a host utility forwards to dump1090 (port 30001). It is the primary reference for this project: the closest prior art for the whole DSP chain, and the design ours is measured against. The table below maps each of its stages to the spec.
 

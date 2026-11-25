@@ -1,4 +1,4 @@
-"""Behavioural prototype of the tick-delay-line DSP (docs/microarch.md), checked against tb/adsb_ref.py. Run from anywhere: python3 scripts/tickline_proto.py"""
+"""Behavioral prototype of the tick-delay-line DSP (docs/microarch.md), checked against tb/adsb_ref.py. Run from anywhere: python3 scripts/tickline_proto.py"""
 import sys; import pathlib; sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / 'tb'))
 import numpy as np, adsb_ref as A
 from collections import deque

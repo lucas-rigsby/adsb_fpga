@@ -323,7 +323,7 @@ def decode(m, rate: int = 1, pre_k: int = PRE_K_DEFAULT, index=None) -> Result:
     cands, last_emit = [], None
     for T, p, phi, H, L in passing:                             # R28: increasing T
         c = chip_energies(m, p, phi, S)
-        assert preamble(c, pre_k) == (None, H, L)               # vectorised == scalar
+        assert preamble(c, pre_k) == (None, H, L)               # vectorized == scalar
         bits = slice_bits(c)
         rem = crc24_remainder(bits)
         if downlink_format(bits) not in (17, 18):
@@ -349,8 +349,8 @@ class SystemModel:
     """Packet- and CSR-level model of the DSP for R21: feed I/Q payloads and CSR
     operations in Ethernet arrival order (R17), read record payloads out.
 
-    Modelled registers: MODE, PRE_K, ADSB_RATE, CTRL (clear), ADSB_CAND, ADSB_FRAMES.
-    Ethernet counters are not modelled (excluded from R21).
+    Modeled registers: MODE, PRE_K, ADSB_RATE, CTRL (clear), ADSB_CAND, ADSB_FRAMES.
+    Ethernet counters are not modeled (excluded from R21).
 
     >>> s = SystemModel(); s.csr_write(protocol.CSR["MODE"], 1)     # R15 worked example
     1
@@ -377,7 +377,7 @@ class SystemModel:
             return 0
         reg = {protocol.CSR["MODE"]: "mode", protocol.CSR["PRE_K"]: "pre_k", protocol.CSR["ADSB_RATE"]: "rate"}.get(addr)
         if reg is None:
-            return None                                         # not modelled
+            return None                                         # not modeled
         self._flush()                                           # R17: clear DSP state
         if reg == "mode":
             self.mode = data & 0xFFFFFFFF
@@ -388,7 +388,7 @@ class SystemModel:
         return self.csr_read(addr)
 
     def csr_read(self, addr: int):
-        """Register value at this point in the arrival order (R17); None if not modelled."""
+        """Register value at this point in the arrival order (R17); None if not modeled."""
         sat = lambda v: min(v, 0xFFFFFFFF)                      # R16
         cand, frames = self._totals()
         return {protocol.CSR["MODE"]: self.mode, protocol.CSR["PRE_K"]: self.pre_k,

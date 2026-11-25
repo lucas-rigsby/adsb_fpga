@@ -52,7 +52,7 @@ same output every time. That property is what makes the design testable, since e
 output can be compared, byte for byte, with a Python reference model.
 
 The full requirements are in [docs/spec.md](docs/spec.md) (revision 0.4).
-Behavioural requirements are numbered R1 to R34, properties for formal proof
+Behavioral requirements are numbered R1 to R34, properties for formal proof
 P1 to P8, and resource and timing budgets T1 to T4. Every test cites the IDs
 it checks.
 
@@ -107,7 +107,7 @@ frequency-shift (modulation) property of the Fourier transform:
 x(t)\, e^{-j\omega_0 t} \;\longleftrightarrow\; X(\omega + \omega_0),
 ```
 
-so everything moves down by $\omega_0$. The 1090 MHz signal ends up centred
+so everything moves down by $\omega_0$. The 1090 MHz signal ends up centered
 near 0 Hz, where a slow, cheap ADC can sample it.
 
 The mixing is done twice, with a cosine and with a sine 90° apart. (In the
@@ -339,7 +339,7 @@ Finding the preamble means sliding the known four-pulse pattern along the
 signal and checking where it fits: high where pulses should be, low in the
 gaps. That is correlation, the same operation as convolution with the pattern
 flipped. It is the **matched filter** from detection theory: correlating
-against the exact shape you expect maximises the chance of spotting it in
+against the exact shape you expect maximizes the chance of spotting it in
 noise. Here each candidate start $T$ is one position of the slide, and the
 tick delay line ([below](#the-tick-delay-line)) does the sliding, one
 position per clock cycle.
@@ -700,7 +700,7 @@ against the model with the same input before it meets live radio.
 - Matched filtering, non-coherent detection, and the PPM decision rule.
 - CRC as polynomial arithmetic over GF(2), and unrolling an LFSR into
   parallel logic, with a formal proof that the two match (P1).
-- Fixed-point design: bit growth, quantisation, and choosing every word
+- Fixed-point design: bit growth, quantization, and choosing every word
   length from an exact bound (the widths table in
   [docs/microarch.md](docs/microarch.md)).
 - Streaming design: budgeting cycles per sample (5 or 6 here, R20) and
@@ -711,5 +711,5 @@ against the model with the same input before it meets live radio.
   FPGA's PLL, which come from different oscillators.
 - Verification against a golden model and a real-world reference
   (dump1090-fa on the same recorded capture), with a measured result.
-- With the FM stretch goal: CIC filters and decimation, analysed through
+- With the FM stretch goal: CIC filters and decimation, analyzed through
   their z-transforms.
