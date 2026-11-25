@@ -65,7 +65,7 @@ it checks.
 | Microarchitecture ([docs/microarch.md](docs/microarch.md)) | complete for the whole design |
 | DSP stages A–C: `iq_mag`, `chip_energy`, `tick_line` | complete: lint, cocotb tests against the model, formal proofs and covers pass (the `tick_line` proof takes about 18 minutes); mutation testing not yet run |
 | DSP stage F2 CRC: `crc24_112` | complete: lint, cocotb tests against the model (every column, 9,000 words), P1 proved through linearity over $\mathrm{GF}(2)$, mutation testing 3 of 3 killed |
-| DSP stages D1–F: `cand_eval` | complete: lint, cocotb tests against the model (3,500+ candidates, every outcome), formal proof of every output for every input except the multiplier primitive; mutation testing 50 of 50 killed (8 only by formal) |
+| DSP stages D1–F: `cand_eval` | complete: lint, cocotb tests against the model (3,500+ candidates, every outcome), formal proof of every output for every input except the multiplier primitive; mutation testing 50 of 50 killed by the tests and by formal, each on its own |
 | DSP stage G: `adsb_emit` (overlap suppression, record output) | not started |
 | Ethernet MAC, parser, packet builder, registers | not started |
 | Host tools (`send_iq.py`, `adsb_rx.py`, `csr.py`) | packet formats only (`host/protocol.py`) |

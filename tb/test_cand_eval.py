@@ -10,7 +10,7 @@ import numpy as np
 from cocotb.clock import Clock
 from cocotb.triggers import ClockCycles, FallingEdge
 
-from adsb_ref import (FRAME_CHIPS, GAP_CHIPS, PULSE_CHIPS, QUIET_CHIPS, RATES, REASONS,
+from adsb_ref import (FRAME_CHIPS, GAP_CHIPS, PULSE_CHIPS, QUIET_CHIPS, RATES, REASONS, SHAPE,
                       chip_energies, crc24_parity, downlink_format, frame_chips, magnitudes,
                       preamble, rand_frame, rand_stream, slice_bits, span)
 
@@ -42,29 +42,72 @@ def frame_c(bits, pulse=1200, gap=300, quiet=60, low=60):
     return c
 
 
+def level_boundary_cases(f):
+    """Frames with K L = 6H + 1 (fails by one) and K L = 6H (passes), found by search
+    over feasible pulse levels and K; gaps stay below the pulses so R24 holds."""
+    out = []
+    found = {"6H + 1": 0, "6H": 0}
+    for pulse in range(1100, 1400):
+        H = 4 * pulse
+        for k in range(2, 256):
+            for target, why in ((6 * H + 1, "6H + 1"), (6 * H, "6H")):
+                if target % k:
+                    continue
+                L = target // k
+                if L > 6 * (pulse - 1) or L < 6:
+                    continue
+                gaps = [L // 6 + (1 if i < L % 6 else 0) for i in range(6)]
+                c = frame_c(f, pulse=pulse)
+                for j, g in zip(GAP_CHIPS, gaps):
+                    c[j] = g
+                reason = preamble(c, k)[0]
+                want = "level" if target == 6 * H + 1 else None
+                if reason == want and found[why] < 2:
+                    found[why] += 1
+                    out.append((c, k, f"R25 K L = {why} (K = {k}, H = {H})"))
+            if min(found.values()) >= 2:
+                return out
+    raise AssertionError("no level boundary case found")
+
+
 def directed_cases(rng):
     """(c, K, why) for every R24-R27 boundary in the spec."""
     f = rand_frame(rng, 17)
     out = [(frame_c(f), 8, "R25 example: H = 4,800, L = 1,800 passes")]
-    # Each R24 relation made the FIRST to fail, by a tie (pulses 1200, gaps 300):
+    # Each R24 relation tied so that it is the ONLY failing test: every other shape
+    # relation, the level test and the quiet zone pass. Then a > / >= slip in that one
+    # compare changes out_cand (pulses 1200, gaps 300; lowered pulses keep the others).
     ties = {
-        "c0>c1": {1: 1200},                 # c1 = c0
-        "c1<c2": {2: 300},                  # c2 = c1
-        "c2>c3": {3: 1200},                 # c3 = c2
-        "c3<c0": {0: 400, 3: 400},          # c3 = c0, still below c2
+        "c0>c1": {0: 1000, 1: 1000},
+        "c1<c2": {2: 1000, 1: 1000},
+        "c2>c3": {2: 1000, 3: 1000},
+        "c3<c0": {0: 1000, 3: 1000},
         "c4<c0": {4: 1200},
         "c5<c0": {5: 1200},
-        "c6<c0": {6: 1200},
-        "c7>c8": {8: 1200},                 # c8 = c7
-        "c8<c9": {9: 300},                  # c9 = c8
-        "c9>c6": {9: 300, 8: 200},          # c9 = c6, with c8 < c9 kept
+        "c6<c0": {0: 1000, 6: 1000},
+        "c7>c8": {7: 1000, 8: 1000},
+        "c8<c9": {9: 1000, 8: 1000},
+        "c9>c6": {9: 1000, 6: 1000},
     }
+    shape = {n: (x, y) for n, x, y in SHAPE}
     for name, edits in ties.items():
         c = frame_c(f)
         for j, v in edits.items():
             c[j] = v
-        assert preamble(c, 8)[0] == name, f"directed case for {name} fails {preamble(c, 8)[0]} first"
-        out.append((c, 8, f"R24 {name} with equality fails (first failing test)"))
+        failing = [n for n, (x, y) in shape.items() if not c[x] > c[y]]
+        assert failing == [name], f"tie for {name} fails {failing}"
+        fixed = list(c)
+        fixed[shape[name][0]] += 1                     # break the tie the right way
+        assert preamble(fixed, 8)[0] is None, f"{name}: everything else must pass"
+        out.append((c, 8, f"R24 {name} tied, the only failing test"))
+        out.append((fixed, 8, f"R24 {name} one above the tie passes"))
+    # R25 quiet zone at H = 4 c_k + 1: passes, and fails for 4 c_k + 1 < H off by one
+    c = frame_c(f); c[9] = 1201; c[12] = 1200
+    assert sum(c[j] for j in PULSE_CHIPS) == 4 * 1200 + 1 and preamble(c, 8)[0] is None
+    out.append((c, 8, "R25 4 c12 = H - 1 passes"))
+    # R25 level at K L = 6H + 1 (fails) and K L = 6H (passes)
+    for c, k, why in level_boundary_cases(f):
+        out.append((c, k, why))
     out.append((frame_c(f, gap=600), 8, "R25 6H == K L (28,800) passes"))
     c = frame_c(f, gap=600); c[4] = 601
     out.append((c, 8, "R25 6H == K L - 8 fails"))
