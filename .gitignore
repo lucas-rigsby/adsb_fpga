@@ -15,5 +15,3 @@ formal/*/
 captures/*.cu8
 !captures/adsb_1s_2m4.cu8
 !captures/adsb_1s_2m0.cu8
-# Claude Code local state (mutation results etc.)
-.claude/
