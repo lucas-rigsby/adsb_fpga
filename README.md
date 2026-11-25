@@ -64,8 +64,9 @@ it checks.
 | Reference model (`tb/adsb_ref.py`) | complete: bit-exact decoder, Ethernet/CSR system model, synthetic signal generator |
 | Microarchitecture ([docs/microarch.md](docs/microarch.md)) | complete for the whole design |
 | DSP stages A–C: `iq_mag`, `chip_energy`, `tick_line` | complete: lint, cocotb tests against the model, formal proofs and covers pass (the `tick_line` proof takes about 18 minutes); mutation testing not yet run |
-| DSP stage E1 CRC: `crc24_112` | complete: lint, cocotb tests against the model (every column, 9,000 words), P1 proved through linearity over $\mathrm{GF}(2)$, mutation testing 3 of 3 killed |
-| DSP stages D, E–G: candidate tests, record output | not started |
+| DSP stage F2 CRC: `crc24_112` | complete: lint, cocotb tests against the model (every column, 9,000 words), P1 proved through linearity over $\mathrm{GF}(2)$, mutation testing 3 of 3 killed |
+| DSP stages D1–F: `cand_eval` | complete: lint, cocotb tests against the model (3,500+ candidates, every outcome), formal proof of every output for every input except the multiplier primitive; mutation testing 50 of 50 killed (8 only by formal) |
+| DSP stage G: `adsb_emit` (overlap suppression, record output) | not started |
 | Ethernet MAC, parser, packet builder, registers | not started |
 | Host tools (`send_iq.py`, `adsb_rx.py`, `csr.py`) | packet formats only (`host/protocol.py`) |
 | Hardware bring-up | not started |
@@ -479,10 +480,11 @@ flip-flops, 41 LUTs, no RAM).
 | A | `iq_mag` | input conversion and magnitude (2 cycles) |
 | B | `chip_energy` | turns each sample into 5 or 6 tick energies |
 | C | `tick_line` | the delay line; presents one candidate per shift |
-| D–F | `cand_eval`, `crc24_112` | preamble tests, bit decisions, DF check, CRC |
+| D–F | `cand_eval` | preamble shape, level and quiet tests, bit decisions, DF check (5 cycles) |
+| F2 | `crc24_112` | CRC-24 of the 112 bits (1 cycle) |
 | G | `adsb_emit` | overlap suppression, sample index lookup, record output |
 
-Estimated total: about 8,100 LUTs (budget 20,000), 20,300 flip-flops, 7 block
+Estimated total: about 8,100 LUTs (budget 20,000), 20,900 flip-flops, 7 block
 RAMs and one multiplier, on a device with 83,640 LUTs.
 
 ---
@@ -542,11 +544,13 @@ docs/        spec.md               requirements, budgets, build order (golden)
 rtl/         iq_mag.v              stage A: input conversion and magnitude
              chip_energy.v         stage B: tick energies
              tick_line.v           stage C: tick delay line
-             crc24_112.v           stage E1: 112-bit parallel CRC-24
+             cand_eval.v           stages D1-F: preamble tests, bit decisions, DF check
+             crc24_112.v           stage F2: 112-bit parallel CRC-24
 tb/          adsb_ref.py           reference model, system model, signal generator (golden)
              test_iq_mag.py        all 65,536 I/Q byte pairs
              test_chip_energy.py   both rates, throughput, clear
              test_tick_line.py     every candidate's 240 taps, phase and index
+             test_cand_eval.py     every R24/R25 boundary, real candidate windows, coverage of every outcome
              test_crc24_112.py     every column x^i, valid frames, bit errors, random words
              Makefile              cocotb targets
 formal/      *_props.v, *.sby      SymbiYosys properties and jobs per block

@@ -1,0 +1,30 @@
+# Formal job for cand_eval.  cd formal && sby -f cand_eval.sby
+#   data:  R24-R27 outputs for every input (one exact step; see cand_eval_props.v)
+#   prove: valid/latency/idle/reset for all time (PDR)
+#   cover: a passing and a failing candidate are reachable
+[tasks]
+data
+prove
+cover
+
+[options]
+data: mode bmc
+data: depth 8
+prove: mode prove
+cover: mode cover
+cover: depth 10
+
+[engines]
+data: smtbmc yices
+prove: abc pdr
+cover: smtbmc yices
+
+[script]
+read -formal cand_eval.v
+data: read -formal -DDATA cand_eval_props.v
+~data: read -formal cand_eval_props.v
+prep -top cand_eval_props
+
+[files]
+../rtl/cand_eval.v
+cand_eval_props.v

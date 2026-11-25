@@ -8,7 +8,7 @@
 #   make trace    spec traceability report
 #   make all      model lint test formal
 
-BLOCKS := iq_mag chip_energy crc24_112 tick_line
+BLOCKS := iq_mag chip_energy crc24_112 cand_eval tick_line
 RTL    := $(addprefix rtl/,$(addsuffix .v,$(BLOCKS)))
 
 .PHONY: all test lint formal model trace clean
