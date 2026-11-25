@@ -2,7 +2,7 @@
 
 This project decodes the radio messages that aircraft broadcast about
 themselves, using an FPGA. An RTL-SDR dongle on a Mac records the 1090 MHz
-band. The Mac sends the raw samples over Ethernet to a ULX3S board with a
+band. The things I will do to avoid using a machine running Windows. The Mac sends the raw samples over Ethernet to a ULX3S board with a
 Lattice ECP5 85F FPGA, which finds and checks each aircraft message and sends
 it back. The Mac only moves bytes; all of the signal processing runs on the
 FPGA.
@@ -48,7 +48,7 @@ processing.
 The FPGA has no clock tied to the radio. It processes samples in the order
 they arrive, as fast as they arrive, and it is faster than the Ethernet link.
 A recording can therefore be replayed at any speed, and the FPGA produces the
-same output every time. That property is what makes the design testable: every
+same output every time. That property is what makes the design testable, since every
 output can be compared, byte for byte, with a Python reference model.
 
 The full requirements are in [docs/spec.md](docs/spec.md) (revision 0.4).
@@ -96,7 +96,7 @@ architecture is the point:
 
 ## Background
 
-### From radio waves to numbers: what the RTL-SDR does
+### From Radio Waves to Numbers
 
 An aircraft transmits at 1090 MHz. No affordable chip can sample at gigahertz
 rates, so the dongle does what every radio does: it mixes the signal down.
@@ -112,7 +112,7 @@ near 0 Hz, where a slow, cheap ADC can sample it.
 
 The mixing is done twice, with a cosine and with a sine 90° apart. (In the
 RTL-SDR the tuner chip first mixes to a low intermediate frequency, and the
-RTL2832U chip digitises that and does the final quadrature mixing digitally;
+RTL2832U chip digitizes that and does the final quadrature mixing digitally;
 the result is the same.) That gives two real sample streams, **I**
 (in-phase) and **Q** (quadrature). Together they form one complex number per
 sample,
@@ -123,23 +123,21 @@ x[n] = I[n] + j\,Q[n],
 
 called **complex baseband**. Complex samples matter because they separate
 positive frequencies from negative ones. With real samples, a signal 100 kHz
-above the centre frequency is indistinguishable from one 100 kHz below. With
+above the center frequency is indistinguishable from one 100 kHz below. With
 complex samples they are different. So sampling at 2.4 MS/s gives a full
 2.4 MHz of usable bandwidth, from $-1.2$ to $+1.2$ MHz, instead of the
 1.2 MHz that the Nyquist limit allows for real samples at the same rate.
 
-The dongle delivers I and Q as 8-bit unsigned values centred on 127.5, at
+The dongle delivers I and Q as 8-bit unsigned values centered on 127.5, at
 2.4 million samples per second (2.0 MS/s during bring-up). That stream of
-byte pairs is everything the hardware ever sees of the outside world.
+byte pairs is all the hardware ever sees of the outside world.
 
 ### What aircraft transmit: ADS-B
 
 ADS-B (Automatic Dependent Surveillance–Broadcast) means each aircraft works
-out its own position from GPS and broadcasts it, about twice a second, along
+out its own position from GPS and broadcasts it, roughly twice a second, along
 with its identity, altitude and velocity. Since 2020 it has been required in
-most US controlled airspace. Nobody interrogates the aircraft; it simply
-announces itself. Anyone with a receiver can listen, which is why
-flight-tracking websites exist.
+most US controlled airspace. The aircraft simply announces itself, and anyone with a receiver can listen. 
 
 The radio format is old and simple, inherited from Mode S secondary radar.
 The transmitter just switches on and off: a burst of 1090 MHz means "pulse",
@@ -147,7 +145,7 @@ silence means "no pulse". A message is an 8 µs preamble, a fixed pattern of
 four pulses, followed by 112 data bits at one bit per microsecond. Each bit
 uses **pulse-position modulation (PPM)**: a pulse in the first half of the
 bit period means 1, a pulse in the second half means 0. The bit is carried by
-the position of the pulse, not its height.
+the position of the pulse rather than its height.
 
 It helps to count time in half-bit slots of 0.5 µs, called **chips**. The
 preamble is 16 chips with pulses in chips 0, 2, 7 and 9 (at 0, 1.0, 3.5 and
@@ -190,11 +188,7 @@ Both are 112 bits long with the same layout:
 
 ### The checksum: polynomial division over GF(2)
 
-Treat the first 88 bits of a message as a polynomial whose coefficients are 0
-or 1, and divide it by the generator polynomial `0x1FFF409` using modulo-2
-arithmetic, where subtraction is XOR. The 24-bit remainder is the parity
-field. A correct message reproduces it exactly; equivalently, dividing all
-112 bits leaves a remainder of zero, which is the check R27 makes.
+To verify that a 112-bit radio transmission arrived without interference or bit errors, the system uses a mathematical checksum called a Cyclic Redundancy Check (CRC-24) based on Galois Field arithmetic. Before sending, the transmitter treats the 88-bit data payload as a polynomial over $GF(2)$, where coefficients can only be 0 or 1, and divides it by a standard, fixed degree-24 generator polynomial (0x1FFF409). Because all math in $GF(2)$ is performed modulo 2, standard subtraction is replaced by simple bitwise XOR operations with no carries or borrows. The leftover 24-bit remainder acts as a unique error-detection signature (parity field) which gets appended to the data to form the complete 112-bit codeword. When the receiver captures the broadcast, it runs the exact same $GF(2)$ polynomial division across all 112 bits. Because the remainder was built into the transmission, an uncorrupted message divides cleanly to leave a remainder of zero, which is the integrity check that routine R27 performs.
 
 In hardware, the textbook implementation is a 24-bit shift register with
 feedback taps (an LFSR) that takes one bit per clock. The faster version
@@ -209,7 +203,7 @@ about 16.
 
 Some other Mode S formats (surveillance replies such as DF4, DF5, DF20 and
 DF21) XOR the aircraft's address into the parity field. For those, the CRC
-remainder *is* the aircraft's ID, so a CRC checker doubles as an address
+remainder is the aircraft's ID, so a CRC checker doubles as an address
 detector. ADS-B formats DF17 and DF18 use plain parity, so this design does
 not need that, but it is how the decoder could be extended.
 
@@ -254,7 +248,7 @@ simpler first step during bring-up.
 The primary reference for this design is Nuand's
 [bladeRF-adsb](https://github.com/Nuand/bladeRF-adsb), a complete ADS-B
 demodulator in VHDL for the bladeRF radio's FPGA. It is the closest existing
-design to this one, and the one this design is measured against.
+design to this one and the one it is measured against.
 [docs/references.md](docs/references.md) compares it stage by stage. The main
 differences:
 
