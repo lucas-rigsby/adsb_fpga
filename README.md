@@ -13,12 +13,14 @@ It assumes some familiarity with digital logic but not with radio or signal
 processing.
 
 - [Overview](#overview)
+- [Why an FPGA?](#why-an-fpga)
 - [Background](#background)
 - [How the decoder works](#how-the-decoder-works)
 - [Hardware design](#hardware-design)
 - [Getting started](#getting-started)
 - [Repository layout](#repository-layout)
 - [Design flow](#design-flow)
+- [What this project covers](#what-this-project-covers)
 
 ---
 
@@ -33,7 +35,7 @@ processing.
 ```
 
 1. The RTL-SDR samples the 1090 MHz band at 2.4 million samples per second
-   (MS/s) and writes 8-bit I/Q samples (explained [below](#from-radio-waves-to-samples)).
+   (MS/s) and writes 8-bit I/Q samples (explained [below](#from-radio-waves-to-numbers-what-the-rtl-sdr-does)).
 2. A Python tool on the Mac packs the samples into UDP packets and sends them
    over 100 Mbit Ethernet to a LAN8720 PHY module plugged into the ULX3S.
 3. The FPGA receives the Ethernet frames, checks them, and passes the samples
@@ -69,50 +71,88 @@ it checks.
 
 ---
 
+## Why an FPGA?
+
+For ADS-B alone, software is fast enough: dump1090 decodes it on a Raspberry
+Pi. The FPGA is not here for raw speed at 2.4 MS/s. It is here because the
+architecture is the point:
+
+- **It scales.** Receivers in radar, electronic warfare and signals
+  intelligence process hundreds of megasamples per second or more, where
+  only FPGAs and ASICs keep up. This design is the same kind of pipeline at a
+  smaller rate. Handling a faster ADC means processing more samples per
+  clock, not rewriting the algorithm.
+- **Its latency is deterministic.** Hardware takes the same number of clock
+  cycles every time, with no operating system, scheduler or cache misses.
+  That is a requirement in defense systems and in low-latency trading:
+  packet in, fixed processing, packet out, with latency counted in cycles.
+  Here the budget is R29: a record leaves within 120 µs of the packet that
+  completed it.
+- **It forces design decisions.** Fixed-point formats, multiplier sharing,
+  pipelining and clock domains are invisible in Python and unavoidable in
+  hardware.
+
+---
+
 ## Background
 
-### ADS-B and Mode S
+### From radio waves to numbers: what the RTL-SDR does
 
-Aircraft carry transponders that answer radar interrogations on 1090 MHz. The
-reply format used by modern transponders is called **Mode S**. ADS-B
-(Automatic Dependent Surveillance–Broadcast) builds on it: an equipped
-aircraft also broadcasts unprompted Mode S messages, called extended
-squitters, several times per second. They carry its identity, callsign,
-position, altitude and velocity. Anyone with a receiver can listen.
+An aircraft transmits at 1090 MHz. No affordable chip can sample at gigahertz
+rates, so the dongle does what every radio does: it mixes the signal down.
+Multiplying by a local oscillator shifts the spectrum. This is the
+frequency-shift (modulation) property of the Fourier transform:
 
-This project decodes the two extended-squitter formats:
+```math
+x(t)\, e^{-j\omega_0 t} \;\longleftrightarrow\; X(\omega + \omega_0),
+```
 
-- **DF17**, sent by aircraft transponders;
-- **DF18**, sent by other ADS-B transmitters, such as airport ground vehicles.
+so everything moves down by $\omega_0$. The 1090 MHz signal ends up centred
+near 0 Hz, where a slow, cheap ADC can sample it.
 
-"DF" stands for downlink format, a 5-bit number at the start of every message.
-Both formats are 112 bits long and laid out the same way:
+The mixing is done twice, with a cosine and with a sine 90° apart. (In the
+RTL-SDR the tuner chip first mixes to a low intermediate frequency, and the
+RTL2832U chip digitises that and does the final quadrature mixing digitally;
+the result is the same.) That gives two real sample streams, **I**
+(in-phase) and **Q** (quadrature). Together they form one complex number per
+sample,
 
-| Field | Bits | Meaning |
-|---|---|---|
-| DF | 5 | downlink format, 17 or 18 |
-| CA / CF | 3 | capability or control field |
-| ICAO address | 24 | unique aircraft address |
-| ME | 56 | message: position, velocity, callsign, ... |
-| PI | 24 | parity (CRC-24) |
+```math
+x[n] = I[n] + j\,Q[n],
+```
 
-The FPGA finds and validates messages. Interpreting the 56-bit ME field, for
-example turning encoded positions into latitude and longitude, is left to the
-host. That decoding is well-established software (for example `pyModeS`).
+called **complex baseband**. Complex samples matter because they separate
+positive frequencies from negative ones. With real samples, a signal 100 kHz
+above the centre frequency is indistinguishable from one 100 kHz below. With
+complex samples they are different. So sampling at 2.4 MS/s gives a full
+2.4 MHz of usable bandwidth, from $-1.2$ to $+1.2$ MHz, instead of the
+1.2 MHz that the Nyquist limit allows for real samples at the same rate.
 
-### Pulse-position modulation
+The dongle delivers I and Q as 8-bit unsigned values centred on 127.5, at
+2.4 million samples per second (2.0 MS/s during bring-up). That stream of
+byte pairs is everything the hardware ever sees of the outside world.
 
-A Mode S message is a series of 0.5 µs time slots called **chips**. In each
-chip the transmitter is either on (a pulse) or off. The receiver only has to
-tell pulse from no pulse, which is why the method works with cheap
-receivers.
+### What aircraft transmit: ADS-B
 
-- **Preamble.** Each message starts with an 8 µs preamble of 16 chips, with
-  pulses in chips 0, 2, 7 and 9 (at 0, 1.0, 3.5 and 4.5 µs). This fixed
-  pattern is how a receiver recognises that a message is starting.
-- **Data.** Each of the 112 data bits takes two chips (1 µs). A 1 is sent as
-  pulse-then-gap and a 0 as gap-then-pulse. This is pulse-position
-  modulation (PPM): the bit is the position of the pulse, not its height.
+ADS-B (Automatic Dependent Surveillance–Broadcast) means each aircraft works
+out its own position from GPS and broadcasts it, about twice a second, along
+with its identity, altitude and velocity. Since 2020 it has been required in
+most US controlled airspace. Nobody interrogates the aircraft; it simply
+announces itself. Anyone with a receiver can listen, which is why
+flight-tracking websites exist.
+
+The radio format is old and simple, inherited from Mode S secondary radar.
+The transmitter just switches on and off: a burst of 1090 MHz means "pulse",
+silence means "no pulse". A message is an 8 µs preamble, a fixed pattern of
+four pulses, followed by 112 data bits at one bit per microsecond. Each bit
+uses **pulse-position modulation (PPM)**: a pulse in the first half of the
+bit period means 1, a pulse in the second half means 0. The bit is carried by
+the position of the pulse, not its height.
+
+It helps to count time in half-bit slots of 0.5 µs, called **chips**. The
+preamble is 16 chips with pulses in chips 0, 2, 7 and 9 (at 0, 1.0, 3.5 and
+4.5 µs), and each data bit is two chips: pulse-then-gap for 1, gap-then-pulse
+for 0. A whole message is $16 + 2 \times 112 = 240$ chips, or 120 µs.
 
 ```
  chip:    0 1 2 3 4 5 6 7 8 9 10..15 | 16 17 | 18 19 | ...
@@ -120,48 +160,88 @@ receivers.
           └──────── preamble ────────┘  bit=1   bit=0
 ```
 
-A whole message is 16 + 2 × 112 = 240 chips, or 120 µs.
+Pulses of neighbouring bits can touch. A 0 followed by a 1 is gap, pulse,
+pulse, gap, so the two pulses merge into one pulse twice as wide:
 
-Because each bit compares two neighbouring chips of the same message, the
-decision does not depend on how strong the signal is. A distant aircraft and
-a nearby one are decoded the same way.
+```
+ bits:     0       1
+ chips:  _  █  |  █  _        one 1 µs pulse across the bit boundary
+```
 
-### The checksum
+A bit slicer that looks for pulse edges gets this wrong. Comparing the two
+chips inside each bit, as this design does, handles it naturally, and the
+bit-slicer test will include it as a directed case.
 
-The last 24 bits of each message are a CRC-24 checksum, with generator
-polynomial `0x1FFF409`. Treating all 112 bits as one long binary polynomial
-and dividing by the generator leaves a remainder of 0 when the message is
-intact.
+This project decodes the two ADS-B formats:
+
+- **DF17**, broadcast by aircraft transponders;
+- **DF18**, broadcast by other ADS-B transmitters, such as airport ground
+  vehicles.
+
+Both are 112 bits long with the same layout:
+
+| Field | Bits | Meaning |
+|---|---|---|
+| DF (downlink format) | 5 | message type: 17 or 18 for ADS-B |
+| CA (capability) | 3 | transponder capability (CF, control field, in DF18) |
+| ICAO address | 24 | the aircraft's unique, permanent ID |
+| ME (message) | 56 | the payload: position, velocity, callsign, altitude, ... |
+| PI (parity) | 24 | CRC-24 checksum |
+
+### The checksum: polynomial division over GF(2)
+
+Treat the first 88 bits of a message as a polynomial whose coefficients are 0
+or 1, and divide it by the generator polynomial `0x1FFF409` using modulo-2
+arithmetic, where subtraction is XOR. The 24-bit remainder is the parity
+field. A correct message reproduces it exactly; equivalently, dividing all
+112 bits leaves a remainder of zero, which is the check R27 makes.
+
+In hardware, the textbook implementation is a 24-bit shift register with
+feedback taps (an LFSR) that takes one bit per clock. The faster version
+unrolls that loop so all 112 bits are processed at once by a block of XOR
+gates. This design uses the unrolled form, and the spec requires a formal
+proof that it equals the bit-serial definition for every input (P1).
 
 The checksum is what keeps noise out. Noise alone looks like a preamble
 fairly often, but random bits pass a 24-bit check only about once in 16.8
 million tries. Requiring DF = 17 or 18 as well cuts this by another factor of
 about 16.
 
-### From radio waves to samples
+Some other Mode S formats (surveillance replies such as DF4, DF5, DF20 and
+DF21) XOR the aircraft's address into the parity field. For those, the CRC
+remainder *is* the aircraft's ID, so a CRC checker doubles as an address
+detector. ADS-B formats DF17 and DF18 use plain parity, so this design does
+not need that, but it is how the decoder could be extended.
 
-The RTL-SDR shifts the 1090 MHz signal down to near 0 Hz and samples it. Each
-sample is a pair of numbers, **I** (in-phase) and **Q** (quadrature). Together
-they describe the signal as a point in a plane. The distance of that point
-from the origin, $\sqrt{I^2 + Q^2}$, is the signal's **magnitude**, which is
-what matters for on/off pulses. The angle is the phase, which ADS-B does not
-use.
+### Where positions are decoded: on the Mac
 
-The RTL-SDR delivers I and Q as unsigned bytes (0 to 255), centred on 127.5.
+Positions are packed with **Compact Position Reporting (CPR)**. Each message
+carries only the low-order bits of latitude and longitude. An "even" and an
+"odd" message, which use slightly different grids, together pin down the
+exact location. It is tidy number theory, but the arithmetic is awkward and
+only needs to run a couple of times per second per aircraft. That is a job
+for software (`pyModeS` on the Mac), so the FPGA stops at validated 112-bit
+messages. Splitting the work this way, fast fixed-function hardware for the
+sample stream and software for rare, complex arithmetic, is a deliberate
+hardware/software partitioning decision.
 
-**How fast to sample.** One chip lasts 0.5 µs, so 2 MS/s gives exactly one
-sample per chip. That works only when chip boundaries happen to line up with
-sample boundaries. A message can start at any instant, so usually each sample
-straddles two chips and blurs them together. In the reference model's tests
-at 2 MS/s, 100 % of messages aligned to sample boundaries were decoded, but
-only 76.5 % of messages with random start times.
+### How fast to sample
 
-At **2.4 MS/s** there are 1.2 samples per chip. The pattern of how chips fall
+One chip lasts 0.5 µs, so 2 MS/s gives exactly one sample per chip. That
+works only when chip boundaries happen to line up with sample boundaries. A
+message can start at any instant, so usually each sample straddles two chips
+and blurs them together. This hurts most for bits whose pulses touch. In the
+reference model's tests at 2 MS/s, 100 % of messages aligned to sample
+boundaries were decoded, but only 76.5 % of messages with random start
+times.
+
+Better decoders estimate where within a sample the pulse edges fell. At
+**2.4 MS/s** there are 1.2 samples per chip, and the pattern of how chips fall
 across samples repeats every 5 samples (6 chips), so there are only 5
 distinct alignments, called **phases**. Testing all 5 phases recovers the
-messages that 2 MS/s blurs. This is the approach of dump1090-fa, the
-widely used software decoder. In the model, 2.4 MS/s with the 5-phase search
-decoded all 10,000 random-start test messages.
+messages that 2 MS/s blurs. This is the approach of dump1090-fa, the widely
+used software decoder. In the model, 2.4 MS/s with the 5-phase search decoded
+all 10,000 random-start test messages.
 
 The faster rate also fits the hardware: 2.4 MS/s of 8-bit I/Q is 38.4 Mbit/s,
 well within a 100 Mbit Ethernet link, and 2.4 MS/s is a standard RTL-SDR
@@ -204,8 +284,16 @@ a function in the reference model.
 Each byte $u$ becomes a signed odd value $x = 2u - 255$. This removes the
 127.5 offset exactly, without fractions: $u = 0 \to -255$, $u = 128 \to 1$.
 
-The exact magnitude $\sqrt{x_I^2 + x_Q^2}$ needs multipliers and a square
-root. The decoder uses the alpha-max-plus-beta-min approximation instead:
+**Magnitude: throw away the phase.** Because ADS-B is on/off pulses, the
+only question at each sample is whether there is energy there, which is the
+magnitude $\lvert x \rvert = \sqrt{x_I^2 + x_Q^2}$. Neither the phase nor a
+small frequency error in the dongle matters. This is called **non-coherent
+detection**, and it is why ADS-B is a friendly first target for a hardware
+receiver.
+
+A real square root is expensive in hardware, so the decoder uses the
+alpha-max-plus-beta-min approximation, which needs only a comparison, a shift
+and an add:
 
 ```math
 m = \max(|x_I|, |x_Q|) + \tfrac{1}{2}\min(|x_I|, |x_Q|).
@@ -214,13 +302,14 @@ m = \max(|x_I|, |x_Q|) + \tfrac{1}{2}\min(|x_I|, |x_Q|).
 It is never below the true magnitude and at most 11.8 % above it
 ($\sqrt{1.25} \approx 1.118$, where one component is twice the other). That
 is accurate enough, because every later test compares chips of the same
-message with each other rather than with a fixed level. The result $m$ fits
+message with each other rather than with a fixed level. It is a classic
+accuracy-for-area trade. The result $m$ fits
 in 9 bits (at most 382).
 
 ### 2. Ticks and chip energies (R32, R33)
 
 To handle both sample rates with one method, time is counted in **ticks** of
-1/12 µs. A chip is 6 ticks. A sample is 5 ticks at 2.4 MS/s and 6 ticks at
+$\tfrac{1}{12}$ µs. A chip is 6 ticks. A sample is 5 ticks at 2.4 MS/s and 6 ticks at
 2.0 MS/s. (12 is the smallest number of ticks per µs that divides both.)
 
 A **candidate** is a possible message start, at tick $T$. Its chip $j$ covers
@@ -252,6 +341,15 @@ one rule for every chip instead of five special cases.
 
 ### 3. Preamble tests (R24, R25)
 
+Finding the preamble means sliding the known four-pulse pattern along the
+signal and checking where it fits: high where pulses should be, low in the
+gaps. That is correlation, the same operation as convolution with the pattern
+flipped. It is the **matched filter** from detection theory: correlating
+against the exact shape you expect maximises the chance of spotting it in
+noise. Here each candidate start $T$ is one position of the slide, and the
+tick delay line ([below](#the-tick-delay-line)) does the sliding, one
+position per clock cycle.
+
 With the chip energies of a candidate:
 
 - **Shape.** The four pulse chips must be higher than their neighbours:
@@ -267,11 +365,34 @@ With the chip energies of a candidate:
 
 $H$ is also reported with each message as its signal level.
 
+**No separate noise floor.** A pulse only means something relative to the
+background. Many decoders track the noise floor with a running average of the
+magnitude (with a power-of-two window, that is a shift and an add) and scale
+every threshold from it. This design instead compares each candidate's pulse
+chips with its own gap chips. The level test is itself a correlation, with
+weight $+6$ on the pulse chips and $-K$ on the gap chips:
+
+```math
+6H - K L \ge 0 .
+```
+
+So the threshold follows the local background automatically, with no state
+carried between candidates and nothing to retune when the radio's gain
+changes. If recorded captures show too many noise preambles reaching the CRC,
+a noise-floor estimate can be added as an extra test.
+
 ### 4. Bits, format and checksum (R26, R27)
 
 Bit $i$ is 1 when its first chip is stronger than its second,
-$c_{16+2i} > c_{17+2i}$. The candidate becomes a message when its first 5
-bits give DF 17 or 18 and the CRC-24 remainder of all 112 bits is zero.
+$c_{16+2i} > c_{17+2i}$. Comparing the two halves is the optimal decision
+rule for PPM in noise: both halves see the same noise, and only one of them
+contains the pulse, so no threshold is needed. The hard part is timing, which
+the chip energies and the phase search take care of.
+
+The candidate becomes a message when its first 5 bits give DF 17 or 18 and
+the CRC-24 remainder of all 112 bits is zero. The CRC is computed for all 112
+bits at once by the unrolled XOR network described
+[above](#the-checksum-polynomial-division-over-gf2).
 
 ### 5. One report per transmission (R28)
 
@@ -352,7 +473,7 @@ order of $T$. That gives three requirements by construction:
 - one sample is consumed every 5 or 6 cycles, faster than Ethernet can
   deliver them (R20).
 
-The cost is flip-flops: 1,435 × 12 bits ≈ 17,200, about 21 % of the
+The cost is flip-flops: $1{,}435 \times 12 \approx 17{,}200$ bits, about 21 % of the
 device's 83,640. Synthesis of the finished block confirms this (17,244
 flip-flops, 41 LUTs, no RAM).
 
@@ -575,3 +696,26 @@ on real hardware before the next begins:
 
 Replaying recorded captures in steps 5 and 5b means the hardware is checked
 against the model with the same input before it meets live radio.
+
+---
+
+## What this project covers
+
+- Complex baseband, I/Q sampling, and why complex samples double the usable
+  bandwidth.
+- Matched filtering, non-coherent detection, and the PPM decision rule.
+- CRC as polynomial arithmetic over GF(2), and unrolling an LFSR into
+  parallel logic, with a formal proof that the two match (P1).
+- Fixed-point design: bit growth, quantisation, and choosing every word
+  length from an exact bound (the widths table in
+  [docs/microarch.md](docs/microarch.md)).
+- Streaming design: budgeting cycles per sample (5 or 6 here, R20) and
+  sharing resources where the budget allows (one multiplier for the level
+  test).
+- Clock-domain crossing: the asynchronous FIFOs between the 50 MHz RMII
+  Ethernet clock from the PHY module and the 50 MHz DSP clock from the
+  FPGA's PLL, which come from different oscillators.
+- Verification against a golden model and a real-world reference
+  (dump1090-fa on the same recorded capture), with a measured result.
+- With the FM stretch goal: CIC filters and decimation, analysed through
+  their z-transforms.

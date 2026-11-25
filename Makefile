@@ -13,6 +13,17 @@ RTL    := $(addprefix rtl/,$(addsuffix .v,$(BLOCKS)))
 
 .PHONY: all test lint formal model trace clean
 
+# Per-block targets (used by mutation testing: ~/.claude/skills/mutate/mutate.py)
+#   make lint-<block> test-<block> formal-<block>
+#   (formal-tick_line is the full ~18-minute proof: too slow to run per mutant)
+lint-%:
+	verilator --lint-only -Wall rtl/$*.v --top-module $*
+test-%:
+	$(MAKE) -C tb $*
+formal-%:
+	cd formal && sby -f $*.sby
+
+
 all: model lint test formal
 
 model:
