@@ -9,6 +9,7 @@
 #   make all      model lint test formal
 
 BLOCKS := iq_mag chip_energy crc24_112 cand_eval adsb_emit tick_line
+DSP    := rtl/dsp_core.v $(addprefix rtl/,$(addsuffix .v,$(BLOCKS)))
 RTL    := $(addprefix rtl/,$(addsuffix .v,$(BLOCKS)))
 
 .PHONY: all test lint formal model trace clean
@@ -16,6 +17,8 @@ RTL    := $(addprefix rtl/,$(addsuffix .v,$(BLOCKS)))
 # Per-block targets (used by mutation testing: ~/.claude/skills/mutate/mutate.py)
 #   make lint-<block> test-<block> formal-<block>
 #   (formal-tick_line is the full ~18-minute proof: too slow to run per mutant)
+lint-dsp_core:
+	verilator --lint-only -Wall $(DSP) --top-module dsp_core
 lint-%:
 	verilator --lint-only -Wall rtl/$*.v --top-module $*
 test-%:
@@ -37,9 +40,10 @@ lint:
 	python3 scripts/gen_crc24_table.py --check
 	@for b in $(BLOCKS); do echo "lint $$b"; \
 	    verilator --lint-only -Wall rtl/$$b.v --top-module $$b || exit 1; done
+	@echo "lint dsp_core"; verilator --lint-only -Wall $(DSP) --top-module dsp_core
 
 formal:
-	@for b in $(BLOCKS); do (cd formal && sby -f $$b.sby) || exit 1; done
+	@for b in $(BLOCKS) dsp_core; do (cd formal && sby -f $$b.sby) || exit 1; done
 
 trace:
 	python3 ~/.claude/skills/spec/spec_trace.py

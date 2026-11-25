@@ -67,6 +67,7 @@ it checks.
 | DSP stage F2 CRC: `crc24_112` | complete: lint, cocotb tests against the model (every column, 9,000 words), P1 proved through linearity over $\mathrm{GF}(2)$, mutation testing 3 of 3 killed |
 | DSP stages D1–F: `cand_eval` | complete: lint, cocotb tests against the model (3,500+ candidates, every outcome), formal proof of every output for every input except the multiplier primitive; mutation testing 50 of 50 killed by the tests and by formal, each on its own |
 | DSP stage G: `adsb_emit` | complete: lint, cocotb tests (records byte-identical to the model on 3 synthetic streams, R28 boundaries, $2^{64}$ indices, queue-full drops), P6, sequence numbers and R34 proved for all time; mutation testing 47 of 47 killed (tests and formal together; each catches some the other misses) |
+| Whole DSP chain: `dsp_core` | complete: I/Q bytes in, records out, byte-identical to the model on synthetic streams (both rates, header-index gap) and every model boundary case; P4 proved; 70.4 MHz out of context against the 60 MHz target, 5 % of the logic, 22 % of the flip-flops |
 | Ethernet MAC, parser, packet builder, registers | not started |
 | Host tools (`send_iq.py`, `adsb_rx.py`, `csr.py`) | packet formats only (`host/protocol.py`) |
 | Hardware bring-up | not started |
@@ -508,6 +509,12 @@ make trace     # which requirements have a test or proof
 make all       # model, lint, test and formal
 ```
 
+The whole-chain test (`make -C tb dsp_core`) runs under Verilator rather than
+Icarus: shifting the 17,220-bit delay line every cycle takes about 9 minutes in
+Icarus and 5 seconds in Verilator. The Makefile passes the Suite's library path
+to the simulator through `env`, because macOS strips `DYLD_*` variables when
+`/usr/bin/make` starts a child process.
+
 To run one block's tests:
 
 ```sh
@@ -547,6 +554,7 @@ rtl/         iq_mag.v              stage A: input conversion and magnitude
              cand_eval.v           stages D1-F: preamble tests, bit decisions, DF check
              crc24_112.v           stage F2: 112-bit parallel CRC-24
              adsb_emit.v           stage G: acceptance, T = Sn + phi, overlap suppression, records
+             dsp_core.v            the whole DSP chain, sample pacing and the index ring
 tb/          adsb_ref.py           reference model, system model, signal generator (golden)
              test_iq_mag.py        all 65,536 I/Q byte pairs
              test_chip_energy.py   both rates, throughput, clear
@@ -554,6 +562,7 @@ tb/          adsb_ref.py           reference model, system model, signal generat
              test_cand_eval.py     every R24/R25 boundary, real candidate windows, coverage of every outcome
              test_crc24_112.py     every column x^i, valid frames, bit errors, random words
              test_adsb_emit.py     records vs the model's decode(), R28 boundaries, clear, queue full
+             test_dsp_core.py      end to end: I/Q bytes in, records vs the model's decode()
              Makefile              cocotb targets
 formal/      *_props.v, *.sby      SymbiYosys properties and jobs per block
 host/        protocol.py           UDP packet formats shared by host tools and tests

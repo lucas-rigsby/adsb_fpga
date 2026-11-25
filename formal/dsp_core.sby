@@ -1,0 +1,28 @@
+# Formal job for dsp_core (P4).  cd formal && sby -f dsp_core.sby
+[tasks]
+prove
+cover
+
+[options]
+prove: mode prove
+cover: mode cover
+cover: depth 12
+
+[engines]
+prove: abc pdr
+cover: smtbmc yices
+
+[script]
+read -formal iq_mag.v chip_energy.v tick_line.v cand_eval.v crc24_112.v adsb_emit.v dsp_core.v
+read -formal dsp_core_props.v
+prep -top dsp_core_props
+
+[files]
+../rtl/iq_mag.v
+../rtl/chip_energy.v
+../rtl/tick_line.v
+../rtl/cand_eval.v
+../rtl/crc24_112.v
+../rtl/adsb_emit.v
+../rtl/dsp_core.v
+dsp_core_props.v
