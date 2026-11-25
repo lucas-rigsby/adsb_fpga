@@ -1,0 +1,17 @@
+# build / sim outputs
+build/
+sim_build/
+*.vcd
+*.fst
+*.json.bak
+results.xml
+__pycache__/
+.pytest_cache/
+*.result.xml
+# SymbiYosys work directories (formal/<job>_<task>/ and formal/<job>/)
+formal/*/
+.venv/
+# large captures stay out of git (listed in captures/manifest.json)
+captures/*.cu8
+!captures/adsb_1s_2m4.cu8
+!captures/adsb_1s_2m0.cu8

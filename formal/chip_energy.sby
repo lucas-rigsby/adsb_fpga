@@ -1,0 +1,23 @@
+# Formal job for chip_energy.  cd formal && sby -f chip_energy.sby
+[tasks]
+prove
+cover
+
+[options]
+prove: mode prove
+cover: mode cover
+cover: depth 16
+prove: depth 10
+
+[engines]
+prove: smtbmc yices
+cover: smtbmc z3
+
+[script]
+read -formal chip_energy.v
+read -formal chip_energy_props.v
+prep -flatten -top chip_energy_props
+
+[files]
+../rtl/chip_energy.v
+chip_energy_props.v

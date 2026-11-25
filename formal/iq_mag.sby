@@ -1,0 +1,22 @@
+# Formal job for iq_mag.  cd formal && sby -f iq_mag.sby
+[tasks]
+prove
+cover
+
+[options]
+prove: mode prove
+cover: mode cover
+cover: depth 12
+
+[engines]
+prove: abc pdr
+cover: smtbmc z3
+
+[script]
+read -formal iq_mag.v
+read -formal iq_mag_props.v
+prep -top iq_mag_props
+
+[files]
+../rtl/iq_mag.v
+iq_mag_props.v

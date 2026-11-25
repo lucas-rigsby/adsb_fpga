@@ -1,0 +1,22 @@
+# Formal job for tick_line (small line, CHIPS = 4).  cd formal && sby -f tick_line.sby
+[tasks]
+prove
+cover
+
+[options]
+prove: mode prove
+cover: mode cover
+cover: depth 80
+
+[engines]
+prove: abc pdr
+cover: smtbmc yices
+
+[script]
+read -formal tick_line.v
+read -formal tick_line_props.v
+prep -top tick_line_props
+
+[files]
+../rtl/tick_line.v
+tick_line_props.v
