@@ -1,0 +1,30 @@
+# Formal job for crc24_112.  cd formal && sby -f crc24_112.sby
+#   p1:    P1 on every basis vector x^i and zero; with linearity this proves P1 (see crc24_112_props.v)
+#   prove: valid/latency/reset properties for all time (PDR)
+#   cover: a passing and a failing remainder are reachable
+[tasks]
+p1
+prove
+cover
+
+[options]
+p1: mode bmc
+p1: depth 3
+prove: mode prove
+cover: mode cover
+cover: depth 4
+
+[engines]
+p1: smtbmc yices
+prove: abc pdr
+cover: smtbmc yices
+
+[script]
+read -formal crc24_112.v
+p1: read -formal -DP1 crc24_112_props.v
+~p1: read -formal crc24_112_props.v
+prep -top crc24_112_props
+
+[files]
+../rtl/crc24_112.v
+crc24_112_props.v

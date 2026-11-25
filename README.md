@@ -64,7 +64,8 @@ it checks.
 | Reference model (`tb/adsb_ref.py`) | complete: bit-exact decoder, Ethernet/CSR system model, synthetic signal generator |
 | Microarchitecture ([docs/microarch.md](docs/microarch.md)) | complete for the whole design |
 | DSP stages A–C: `iq_mag`, `chip_energy`, `tick_line` | complete: lint, cocotb tests against the model, formal proofs and covers pass (the `tick_line` proof takes about 18 minutes); mutation testing not yet run |
-| DSP stages D–G: candidate tests, CRC, record output | not started |
+| DSP stage E1 CRC: `crc24_112` | complete: lint, cocotb tests against the model (every column, 9,000 words), P1 proved through linearity over $\mathrm{GF}(2)$, mutation testing 3 of 3 killed |
+| DSP stages D, E–G: candidate tests, record output | not started |
 | Ethernet MAC, parser, packet builder, registers | not started |
 | Host tools (`send_iq.py`, `adsb_rx.py`, `csr.py`) | packet formats only (`host/protocol.py`) |
 | Hardware bring-up | not started |
@@ -541,14 +542,17 @@ docs/        spec.md               requirements, budgets, build order (golden)
 rtl/         iq_mag.v              stage A: input conversion and magnitude
              chip_energy.v         stage B: tick energies
              tick_line.v           stage C: tick delay line
+             crc24_112.v           stage E1: 112-bit parallel CRC-24
 tb/          adsb_ref.py           reference model, system model, signal generator (golden)
              test_iq_mag.py        all 65,536 I/Q byte pairs
              test_chip_energy.py   both rates, throughput, clear
              test_tick_line.py     every candidate's 240 taps, phase and index
+             test_crc24_112.py     every column x^i, valid frames, bit errors, random words
              Makefile              cocotb targets
 formal/      *_props.v, *.sby      SymbiYosys properties and jobs per block
 host/        protocol.py           UDP packet formats shared by host tools and tests
 scripts/     tickline_proto.py     Python prototype of the delay-line design
+             gen_crc24_table.py    generates (and checks) the CRC column table in crc24_112.v
 captures/    manifest.json         recorded radio captures (large files stay out of git)
 constraints/                       ULX3S pin constraints (to come)
 Makefile                           model, lint, test, formal, trace

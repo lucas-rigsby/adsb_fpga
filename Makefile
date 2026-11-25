@@ -8,7 +8,7 @@
 #   make trace    spec traceability report
 #   make all      model lint test formal
 
-BLOCKS := iq_mag chip_energy tick_line
+BLOCKS := iq_mag chip_energy crc24_112 tick_line
 RTL    := $(addprefix rtl/,$(addsuffix .v,$(BLOCKS)))
 
 .PHONY: all test lint formal model trace clean
@@ -34,6 +34,7 @@ test:
 	$(MAKE) -C tb all
 
 lint:
+	python3 scripts/gen_crc24_table.py --check
 	@for b in $(BLOCKS); do echo "lint $$b"; \
 	    verilator --lint-only -Wall rtl/$$b.v --top-module $$b || exit 1; done
 

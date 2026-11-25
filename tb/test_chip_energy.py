@@ -48,6 +48,10 @@ async def run_segment(dut, m, rng, gap_p=0.3):
         cycle += 1
         if dut.out_valid.value == 1:
             ticks.append(dut.out_e.value)
+            # R17 WAIT_DRAIN relies on idle: never high while a tick is still on the output
+            assert dut.idle.value == 0, "idle high while a tick is being shifted out"
+        elif dut.in_ready.value == 1 and dut.rst_n.value == 1:
+            assert dut.idle.value == 1, "idle low with nothing in flight"
     dut.in_valid.value = 0
     await FallingEdge(dut.clk)      # let the write land: cocotb 2.1-dev crashes on a write pending at exit
     return ticks, accepts

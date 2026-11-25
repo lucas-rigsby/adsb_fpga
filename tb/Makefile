@@ -11,9 +11,9 @@ export LIBPYTHON_LOC ?= $(shell cocotb-config --libpython 2>/dev/null)
 # tests import the reference model (tb/) and host/protocol.py (repo root)
 export PYTHONPATH := $(abspath .):$(abspath ..):$(PYTHONPATH)
 
-.PHONY: all sim clean iq_mag chip_energy tick_line
+.PHONY: all sim clean iq_mag chip_energy tick_line crc24_112
 
-all: iq_mag chip_energy tick_line
+all: iq_mag chip_energy tick_line crc24_112
 
 iq_mag:
 	$(MAKE) sim TOPLEVEL=iq_mag COCOTB_TEST_MODULES=test_iq_mag \
@@ -26,6 +26,10 @@ chip_energy:
 tick_line:
 	$(MAKE) sim TOPLEVEL=tick_line COCOTB_TEST_MODULES=test_tick_line \
 	    SRCS="$(RTL)/tick_line.v" SIM_BUILD=sim_build/tick_line
+
+crc24_112:
+	$(MAKE) sim TOPLEVEL=crc24_112 COCOTB_TEST_MODULES=test_crc24_112 \
+	    SRCS="$(RTL)/crc24_112.v" SIM_BUILD=sim_build/crc24_112
 
 ifdef TOPLEVEL
 COCOTB_TOPLEVEL := $(TOPLEVEL)
