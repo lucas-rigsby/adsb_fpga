@@ -66,7 +66,7 @@ it checks.
 | DSP stages A–C: `iq_mag`, `chip_energy`, `tick_line` | complete: lint, cocotb tests against the model, formal proofs and covers pass (the `tick_line` proof takes about 18 minutes); mutation testing not yet run |
 | DSP stage F2 CRC: `crc24_112` | complete: lint, cocotb tests against the model (every column, 9,000 words), P1 proved through linearity over $\mathrm{GF}(2)$, mutation testing 3 of 3 killed |
 | DSP stages D1–F: `cand_eval` | complete: lint, cocotb tests against the model (3,500+ candidates, every outcome), formal proof of every output for every input except the multiplier primitive; mutation testing 50 of 50 killed by the tests and by formal, each on its own |
-| DSP stage G: `adsb_emit` (overlap suppression, record output) | not started |
+| DSP stage G: `adsb_emit` | complete: lint, cocotb tests (records byte-identical to the model on 3 synthetic streams, R28 boundaries, $2^{64}$ indices, queue-full drops), P6, sequence numbers and R34 proved for all time; mutation testing 47 of 47 killed (tests and formal together; each catches some the other misses) |
 | Ethernet MAC, parser, packet builder, registers | not started |
 | Host tools (`send_iq.py`, `adsb_rx.py`, `csr.py`) | packet formats only (`host/protocol.py`) |
 | Hardware bring-up | not started |
@@ -546,12 +546,14 @@ rtl/         iq_mag.v              stage A: input conversion and magnitude
              tick_line.v           stage C: tick delay line
              cand_eval.v           stages D1-F: preamble tests, bit decisions, DF check
              crc24_112.v           stage F2: 112-bit parallel CRC-24
+             adsb_emit.v           stage G: acceptance, T = Sn + phi, overlap suppression, records
 tb/          adsb_ref.py           reference model, system model, signal generator (golden)
              test_iq_mag.py        all 65,536 I/Q byte pairs
              test_chip_energy.py   both rates, throughput, clear
              test_tick_line.py     every candidate's 240 taps, phase and index
              test_cand_eval.py     every R24/R25 boundary, real candidate windows, coverage of every outcome
              test_crc24_112.py     every column x^i, valid frames, bit errors, random words
+             test_adsb_emit.py     records vs the model's decode(), R28 boundaries, clear, queue full
              Makefile              cocotb targets
 formal/      *_props.v, *.sby      SymbiYosys properties and jobs per block
 host/        protocol.py           UDP packet formats shared by host tools and tests

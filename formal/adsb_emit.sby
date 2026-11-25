@@ -1,0 +1,25 @@
+# Formal job for adsb_emit.  cd formal && sby -f adsb_emit.sby
+#   prove: P6 (R28), sequence numbers, R34 push/drop, control, for all time
+#   cover: two records in a segment, a record after clear, a dropped record
+[tasks]
+prove
+cover
+
+[options]
+prove: mode prove
+prove: depth 8
+cover: mode cover
+cover: depth 12
+
+[engines]
+prove: smtbmc yices
+cover: smtbmc yices
+
+[script]
+read -formal adsb_emit.v
+read -formal adsb_emit_props.v
+prep -top adsb_emit_props
+
+[files]
+../rtl/adsb_emit.v
+adsb_emit_props.v

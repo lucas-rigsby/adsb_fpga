@@ -8,12 +8,12 @@ RTL            := $(abspath ../rtl)
 
 # cocotb from the OSS CAD Suite has a stale built-in libpython path
 export LIBPYTHON_LOC ?= $(shell cocotb-config --libpython 2>/dev/null)
-# tests import the reference model (tb/) and host/protocol.py (repo root)
-export PYTHONPATH := $(abspath .):$(abspath ..):$(PYTHONPATH)
+# tests import the reference model (tb/) and the packet formats (host/protocol.py)
+export PYTHONPATH := $(abspath .):$(abspath ..):$(abspath ../host):$(PYTHONPATH)
 
-.PHONY: all sim clean iq_mag chip_energy tick_line crc24_112 cand_eval
+.PHONY: all sim clean iq_mag chip_energy tick_line crc24_112 cand_eval adsb_emit
 
-all: iq_mag chip_energy tick_line crc24_112 cand_eval
+all: iq_mag chip_energy tick_line crc24_112 cand_eval adsb_emit
 
 iq_mag:
 	$(MAKE) sim TOPLEVEL=iq_mag COCOTB_TEST_MODULES=test_iq_mag \
@@ -34,6 +34,10 @@ crc24_112:
 cand_eval:
 	$(MAKE) sim TOPLEVEL=cand_eval COCOTB_TEST_MODULES=test_cand_eval \
 	    SRCS="$(RTL)/cand_eval.v" SIM_BUILD=sim_build/cand_eval
+
+adsb_emit:
+	$(MAKE) sim TOPLEVEL=adsb_emit COCOTB_TEST_MODULES=test_adsb_emit \
+	    SRCS="$(RTL)/adsb_emit.v" SIM_BUILD=sim_build/adsb_emit
 
 ifdef TOPLEVEL
 COCOTB_TOPLEVEL := $(TOPLEVEL)
